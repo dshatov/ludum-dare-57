@@ -35,6 +35,12 @@ public class IntRect {
             && other.y < y + h;
     }
 
+    public IntRect setPos(int x, int y) {
+        this.x = x;
+        this.y = y;
+        return this;
+    }
+
     public void draw(final ShapeRenderer sr) {
         sr.rect(x, y, w, h);
     }

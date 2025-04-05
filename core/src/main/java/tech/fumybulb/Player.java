@@ -164,6 +164,21 @@ public class Player extends Actor {
 
     //------------------------------------------------------------------------------------------------------------------
 
+    @Override
+    public int moveX(float dx, Runnable onCollide) {
+        int actualDx = super.moveX(dx, onCollide);
+        return actualDx;
+    }
+
+    @Override
+    public int moveY(float dy, Runnable onCollide) {
+        int actualDy = super.moveY(dy, onCollide);
+        return actualDy;
+    }
+
+
+    //------------------------------------------------------------------------------------------------------------------
+
     private enum ActionInput {
         JUMP(new int[]{
             Input.Keys.SPACE,
