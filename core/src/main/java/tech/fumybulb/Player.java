@@ -2,28 +2,37 @@ package tech.fumybulb;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.controllers.Controller;
+import com.badlogic.gdx.controllers.Controllers;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.utils.Array;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class Player extends Actor {
 
     private static final Map<State, Color> STATES_COLORS = Map.of(
         State.RUNNING, Color.RED,
         State.FALLING, Color.FOREST,
+        State.WALL_SLIDING, Color.ORANGE,
+        State.WALL_JUMPING, Color.PINK,
         State.JUMPING, Color.YELLOW,
         State.STANDING, Color.SKY
     );
 
     private static final float MAX_MOVEMENT_VX = 120;
     private static final float MOVEMENT_AX = 240;
-    private static final float FALLING_AY = 800;
-    private static final float FALLING_WHEN_JUMPING_AY = 600;
-    private static final float MAX_FALLING_VY = 800;
-    private static final float JUMPING_INSTANT_VY = 240;
+    private static final float FALLING_AY = 600;
+    private static final float WALL_SLIDING_AY = 150;
+    private static final float FALLING_WHEN_JUMPING_AY = 400;
+    private static final float MAX_FALLING_VY = 600;
+    private static final float MAX_WALL_SLIDING_VY = 100;
+    private static final float JUMPING_INSTANT_VY = 200;
 
     /**
      * Main usage: do jump on landing if key was pressed slighly before landing.
@@ -35,6 +44,8 @@ public class Player extends Actor {
      */
     private static final float STATE_BUFFERING_SECONDS = 0.05f;
 
+    private static final float WALL_JUMPING_SECONDS = 0.2f;
+
     //------------------------------------------------------------------------------------------------------------------
 
     private final EnumSet<ActionInput> currentInputs = EnumSet.noneOf(ActionInput.class);
@@ -45,6 +56,11 @@ public class Player extends Actor {
     private float vy = 0;
     private float ax = 0;
     private float ay = 0;
+
+    private boolean isLeft = false;
+
+    private boolean touchLeftWall = false;
+    private boolean touchRightWall = false;
 
     private State state = State.STANDING;
     private State previousState = State.RUNNING;
@@ -71,6 +87,12 @@ public class Player extends Actor {
     public void draw(final ShapeRenderer sr) {
         sr.setColor(STATES_COLORS.get(state));
         super.draw(sr);
+        sr.setColor(Color.BLACK);
+        if (isLeft) {
+            sr.rect(x, y + h - 1, 1, 1);
+        } else {
+            sr.rect(x + w - 1, y + h - 1, 1, 1);
+        }
     }
 
     public void collectInput() {
@@ -97,6 +119,9 @@ public class Player extends Actor {
             InputState inputState = actionInput.getState(this);
             handleInput(dt, actionInput, inputState);
         }
+
+        touchLeftWall = testOverlapsSolids(-1, 0);
+        touchRightWall = testOverlapsSolids(1, 0);
         state.update(this, dt);
     }
 
@@ -113,6 +138,15 @@ public class Player extends Actor {
     @Override
     protected boolean overlapsSolids() {
         return super.overlapsSolids() || overlapsSolidTiles();
+    }
+
+    public boolean testOverlapsSolids(int dx, int dy) {
+        x += dx;
+        y += dy;
+        boolean result = overlapsSolids();
+        x -= dx;
+        y -= dy;
+        return result;
     }
 
     private boolean overlapsSolidTiles() {
@@ -149,7 +183,10 @@ public class Player extends Actor {
 
     private void applyForces(float dt) {
         vx = MathUtils.clamp(vx + dt * ax, -MAX_MOVEMENT_VX, MAX_MOVEMENT_VX);
-        vy = MathUtils.clamp(vy + dt * ay, -MAX_FALLING_VY, MAX_FALLING_VY);
+        float vyLimit = state == State.WALL_SLIDING
+            ? MAX_WALL_SLIDING_VY
+            : MAX_FALLING_VY;
+        vy = MathUtils.clamp(vy + dt * ay, -vyLimit, vyLimit);
     }
 
     //------------------------------------------------------------------------------------------------------------------
@@ -168,23 +205,33 @@ public class Player extends Actor {
         JUMP(new int[]{
             Input.Keys.SPACE,
             Input.Keys.W,
-        }),
+        }, List.of(
+            (it) -> it.getButton(it.getMapping().buttonA)
+        )),
         LEFT(new int[]{
             Input.Keys.LEFT,
             Input.Keys.A,
-        }),
+        }, List.of(
+            (it) -> it.getButton(it.getMapping().buttonDpadLeft),
+            (it) -> it.getAxis(it.getMapping().axisLeftX) < -0.25f
+        )),
         RIGHT(new int[]{
             Input.Keys.RIGHT,
             Input.Keys.D,
-        }),
+        }, List.of(
+            (it) -> it.getButton(it.getMapping().buttonDpadRight),
+            (it) -> it.getAxis(it.getMapping().axisLeftX) > 0.25f
+        )),
         ;
 
         public static final ActionInput[] INSTANCES = ActionInput.values();
 
         private final int[] keys;
+        private final List<Predicate<Controller>> controllersHandlers;
 
-        ActionInput(int[] keys) {
+        ActionInput(int[] keys, List<Predicate<Controller>> controllersHandlers) {
             this.keys = keys;
+            this.controllersHandlers = controllersHandlers;
         }
 
         boolean isPressed() {
@@ -193,7 +240,19 @@ public class Player extends Actor {
                     return true;
                 }
             }
+            Array<Controller> controllers = Controllers.getControllers();
+
+            //noinspection GDXJavaUnsafeIterator
+            for (Controller controller : controllers) {
+                if (controllersHandlers.stream().anyMatch(it -> it.test(controller))) {
+                    return true;
+                }
+            }
             return false;
+        }
+
+        boolean isJustPressed(Player player) {
+            return getState(player) == InputState.JUST_PRESSED;
         }
 
         InputState getState(Player player) {
@@ -242,6 +301,8 @@ public class Player extends Actor {
         Standing STANDING = new Standing();
         Jumping JUMPING = new Jumping();
         Falling FALLING = new Falling();
+        WallSliding WALL_SLIDING = new WallSliding();
+        WallJumping WALL_JUMPING = new WallJumping();
         Running RUNNING = new Running();
 
         void handleInput(Player player, float dt, ActionInput input, InputState inputState);
@@ -260,18 +321,23 @@ public class Player extends Actor {
                 return true;
             }
             if (rightIsPressed) {
+                player.isLeft = false;
                 player.ax = MOVEMENT_AX;
                 if (player.vx < 0) {
                     player.vx = 0;
                 }
             } else if (leftIsPressed) {
+                player.isLeft = true;
                 player.ax = -MOVEMENT_AX;
                 if (player.vx > 0) {
                     player.vx = 0;
                 }
             } else {
-                player.ax = 0;
-                player.vx = 0;
+                player.ax = -10 * player.vx;
+                if (Math.abs(player.ax) < 0.9f || Math.abs(player.vx) < 0.9f) {
+                    player.ax = 0;
+                    player.vx = 0;
+                }
             }
             return true;
         }
@@ -295,10 +361,10 @@ public class Player extends Actor {
             public void update(Player player, float dt) {
                 player.applyForces(dt);
                 if (player.applyVelocityX(dt) != 0) {
-                    player.state = RUNNING;
+                    player.setState(RUNNING);
                 }
                 if (player.applyVelocityY(dt) < 0) {
-                    player.state = FALLING;
+                    player.setState(FALLING);
                 }
             }
 
@@ -318,9 +384,24 @@ public class Player extends Actor {
                     return;
                 }
                 if (input == ActionInput.JUMP && !input.isPressed()) {
-                    player.vy = 0;
-                    player.ay = -FALLING_AY;
                     player.setState(FALLING);
+                    return;
+                }
+
+
+                if (input == ActionInput.JUMP && input.isJustPressed(player) && player.stateChangeTime > 0.1f) {
+                    if (player.touchLeftWall && !player.touchRightWall) {
+                        player.vy = JUMPING_INSTANT_VY / 1.5f;
+                        player.ay = -FALLING_WHEN_JUMPING_AY;
+                        player.vx = JUMPING_INSTANT_VY / 1.5f;
+                        player.setState(WALL_JUMPING);
+                    }
+                    if (!player.touchLeftWall && player.touchRightWall) {
+                        player.vy = JUMPING_INSTANT_VY / 1.5f;
+                        player.ay = -FALLING_WHEN_JUMPING_AY;
+                        player.vx = -JUMPING_INSTANT_VY / 1.5f;
+                        player.setState(WALL_JUMPING);
+                    }
                 }
             }
 
@@ -330,7 +411,36 @@ public class Player extends Actor {
                 int dy = player.applyVelocityY(dt);
                 player.applyVelocityX(dt);
                 if (dy < 0) {
-                    player.ay = -FALLING_AY;
+                    player.setState(FALLING);
+                }
+            }
+
+            @Override
+            public void enterState(Player player) {
+            }
+        }
+
+        //--------------------------------------------------------------------------------------------------------------
+
+        class WallJumping implements State {
+
+            @Override
+            public void handleInput(Player player, float dt, ActionInput input, InputState inputState) {
+                if (input == ActionInput.JUMP && !input.isPressed()) {
+                    player.setState(FALLING);
+                }
+            }
+
+            @Override
+            public void update(Player player, float dt) {
+                if (player.stateChangeTime >= WALL_JUMPING_SECONDS) {
+                    player.state = JUMPING;
+                }
+
+                player.applyForces(dt);
+                int dy = player.applyVelocityY(dt);
+                player.applyVelocityX(dt);
+                if (dy < 0) {
                     player.setState(FALLING);
                 }
             }
@@ -367,6 +477,53 @@ public class Player extends Actor {
                 int dy = player.applyVelocityY(dt);
                 if (0 <= dy && player.vy == 0) {
                     player.setState(STANDING);
+                } else if (player.touchLeftWall || player.touchRightWall) {
+                    player.ay = -WALL_SLIDING_AY;
+                    player.setState(WALL_SLIDING);
+                }
+                player.applyVelocityX(dt);
+            }
+
+            @Override
+            public void enterState(Player player) {
+                player.vy = 0;
+                player.ay = -FALLING_AY;
+            }
+        }
+
+        //--------------------------------------------------------------------------------------------------------------
+
+        class WallSliding implements State {
+
+            @Override
+            public void handleInput(Player player, float dt, ActionInput input, InputState inputState) {
+                if (handleDirInput(player, input)) {
+                    return;
+                }
+                if (input == ActionInput.JUMP && input.isJustPressed(player) && !player.hasTinyTimeSinceStateUpdate()) {
+                    if (player.touchLeftWall && !player.touchRightWall) {
+                        player.vy = JUMPING_INSTANT_VY / 1.5f;
+                        player.ay = -FALLING_WHEN_JUMPING_AY;
+                        player.vx = JUMPING_INSTANT_VY / 1.5f;
+                        player.setState(WALL_JUMPING);
+                    }
+                    if (!player.touchLeftWall && player.touchRightWall) {
+                        player.vy = JUMPING_INSTANT_VY / 1.5f;
+                        player.ay = -FALLING_WHEN_JUMPING_AY;
+                        player.vx = -JUMPING_INSTANT_VY / 1.5f;
+                        player.setState(WALL_JUMPING);
+                    }
+                }
+            }
+
+            @Override
+            public void update(Player player, float dt) {
+                player.applyForces(dt);
+                int dy = player.applyVelocityY(dt);
+                if (0 <= dy && player.vy == 0) {
+                    player.setState(STANDING);
+                } else if (!player.touchRightWall && !player.touchLeftWall) {
+                    player.setState(FALLING);
                 }
                 player.applyVelocityX(dt);
             }
@@ -402,7 +559,6 @@ public class Player extends Actor {
                 }
                 player.applyVelocityX(dt);
                 if (dy < 0) {
-                    player.ay = -FALLING_AY;
                     player.setState(FALLING);
                 }
             }
