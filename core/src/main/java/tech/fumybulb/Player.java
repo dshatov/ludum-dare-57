@@ -30,7 +30,7 @@ public class Player extends Actor {
     private static final float FALLING_AY = 600;
     private static final float WALL_SLIDING_AY = 150;
     private static final float FALLING_WHEN_JUMPING_AY = 400;
-    private static final float MAX_FALLING_VY = 600;
+    private static final float MAX_FALLING_VY = 400;
     private static final float MAX_WALL_SLIDING_VY = 100;
     private static final float JUMPING_INSTANT_VY = 200;
 
