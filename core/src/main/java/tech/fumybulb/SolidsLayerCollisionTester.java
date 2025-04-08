@@ -2,6 +2,8 @@ package tech.fumybulb;
 
 import com.badlogic.gdx.maps.tiled.TiledMapTileLayer;
 
+import java.util.function.Consumer;
+
 public class SolidsLayerCollisionTester {
     private final TiledMapTileLayer layer;
     private final IntRect tileRect;
@@ -11,7 +13,19 @@ public class SolidsLayerCollisionTester {
         tileRect = new IntRect(0, 0, Conf.TILE_SIZE, Conf.TILE_SIZE);
     }
 
-    public boolean overlaps(final IntRect other) {
+    public int getTilesCount() {
+        int count = 0;
+        for (int i = 0; i < layer.getWidth(); i++) {
+            for (int j = 0; j < layer.getHeight(); j++) {
+                if (layer.getCell(i, j) != null) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    public boolean overlaps(final IntRect other, Consumer<TiledMapTileLayer.Cell> onCollide) {
         if (other.y < 0 || other.x < 0) {
             return true;
         }
@@ -31,6 +45,10 @@ public class SolidsLayerCollisionTester {
                 if (cell != null) {
                     tileRect.x = x * Conf.TILE_SIZE;
                     tileRect.y = y * Conf.TILE_SIZE;
+                    if (onCollide != null) {
+                        onCollide.accept(cell);
+                        layer.setCell(x, y, null);
+                    }
                     if (tileRect.overlaps(other)) {
                         return true;
                     }

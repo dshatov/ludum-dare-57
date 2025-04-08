@@ -14,14 +14,14 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 
 public class GameScreen extends ScreenAdapter {
     private final FixedDtUpdater fixedDtUpdater = new FixedDtUpdater();
-    private final Player player = new Player();
     private final OrthographicCamera gameCamera = new OrthographicCamera();
     private final Viewport gameViewport = new FitViewport(Conf.VIEWPORT_WIDTH, Conf.VIEWPORT_HEIGHT, gameCamera);
     private final MainResources res;
     private final DebugOverlay debugOverlay;
-    private final TiledMap tiledMap = new TmxMapLoader().load("test-level-big.tmx");
+    private final TiledMap tiledMap = new TmxMapLoader().load("main-level.tmx");
     private final OrthogonalTiledMapRenderer mapRenderer = new OrthogonalTiledMapRenderer(tiledMap);
     private final CameraTarget cameraTarget = new CameraTarget();
+    private final Player player;
 
     //------------------------------------------------------------------------------------------------------------------
 
@@ -29,7 +29,11 @@ public class GameScreen extends ScreenAdapter {
         this.res = res;
         debugOverlay = new DebugOverlay(res, gameViewport, Conf.DEBUG_SHOW_PROCESS_CPU_LOAD);
         TiledMapTileLayer solids = (TiledMapTileLayer) tiledMap.getLayers().get("solids");
+        player = new Player(0, solids.getTileHeight() * (solids.getHeight() - 3));
+//        player = new Player(220 * 8, 120 * 8);
         player.solidsLayerCollisionTester = new SolidsLayerCollisionTester(solids);
+        player.carrots =  new SolidsLayerCollisionTester((TiledMapTileLayer) tiledMap.getLayers().get("carrots"));
+        player.carrotsRemaining = player.carrots.getTilesCount();
         cameraTarget.setBounds(
             Conf.VIEWPORT_WIDTH / 2,
             Conf.VIEWPORT_HEIGHT / 2,
@@ -78,13 +82,21 @@ public class GameScreen extends ScreenAdapter {
         cameraTarget.applyTo(gameCamera);
         res.shapeRenderer.setProjectionMatrix(gameCamera.combined);
 
-        player.draw(res.shapeRenderer);
         res.shapeRenderer.setColor(Color.OLIVE);
         Actor.VIEWPORT_BOUNDS_SOLIDS.forEach(it -> it.draw(res.shapeRenderer));
         res.shapeRenderer.end();
 
         mapRenderer.setView(gameCamera);
         mapRenderer.render();
+
+        res.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        player.draw(res.shapeRenderer);
+        res.shapeRenderer.end();
+
+        res.spriteBatch.begin();
+        res.spriteBatch.setColor(DebugOverlay.Colors.TEXT);
+        res.font.draw(res.spriteBatch, "CARROTS: " + player.score + " / " + player.carrotsRemaining, 0, gameViewport.getScreenHeight());
+        res.spriteBatch.end();
     }
 
     @Override

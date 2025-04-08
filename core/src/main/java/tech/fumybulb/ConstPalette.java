@@ -7,5 +7,5 @@ public final class ConstPalette {
         throw new UnsupportedOperationException();
     }
 
-    public static final Color BG = Color.valueOf("002245");
+    public static final Color BG = Color.valueOf("001725");
 }

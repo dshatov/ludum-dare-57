@@ -129,7 +129,7 @@ public class DebugOverlay {
 
     //------------------------------------------------------------------------------------------------------------------
 
-    private static final class Colors {
+    static final class Colors {
         static final Color TILES_GRID = Color.GRAY;
         static final Color PIXELS_GRID = Color.DARK_GRAY;
         static final Color TEXT = Color.WHITE;

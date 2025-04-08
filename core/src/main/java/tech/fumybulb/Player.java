@@ -51,6 +51,7 @@ public class Player extends Actor {
     private final EnumSet<ActionInput> currentInputs = EnumSet.noneOf(ActionInput.class);
     private final EnumSet<ActionInput> previousInput = EnumSet.noneOf(ActionInput.class);
     private final float[] inputChangeTime = new float[ActionInput.INSTANCES.length];
+    public SolidsLayerCollisionTester carrots;
 
     private float vx = 0;
     private float vy = 0;
@@ -62,11 +63,13 @@ public class Player extends Actor {
     private boolean touchLeftWall = false;
     private boolean touchRightWall = false;
 
-    private State state = State.STANDING;
-    private State previousState = State.RUNNING;
+    private State state = State.FALLING;
+    private State previousState = State.JUMPING;
     private float stateChangeTime = 3600;
 
     public SolidsLayerCollisionTester solidsLayerCollisionTester = null;
+    public int score = 0;
+    public int carrotsRemaining;
 
     //------------------------------------------------------------------------------------------------------------------
 
@@ -76,7 +79,7 @@ public class Player extends Actor {
     }
 
     public Player(final int x, final int y) {
-        this(x, y, Conf.TILE_SIZE - 5, Conf.TILE_SIZE - 5);
+        this(x, y, Conf.TILE_SIZE - 2, Conf.TILE_SIZE - 2);
     }
 
     public Player(final int x, final int y, final int w, final int h) {
@@ -123,6 +126,16 @@ public class Player extends Actor {
         touchLeftWall = testOverlapsSolids(-1, 0);
         touchRightWall = testOverlapsSolids(1, 0);
         state.update(this, dt);
+
+        // DEBUG FLY
+//        if (ActionInput.LEFT.isPressed()) {
+//            moveX(-5, null);
+//        } else if (ActionInput.RIGHT.isPressed()) {
+//            moveX(5, null);
+//        }
+//        if (ActionInput.JUMP.isPressed()) {
+//            moveY(5, null);
+//        }
     }
 
     public void updateCameraTarget(float dt, CameraTarget cameraTarget) {
@@ -137,6 +150,7 @@ public class Player extends Actor {
 
     @Override
     protected boolean overlapsSolids() {
+        tryCollectCarrot();
         return super.overlapsSolids() || overlapsSolidTiles();
     }
 
@@ -154,7 +168,14 @@ public class Player extends Actor {
             return false;
         }
 
-        return solidsLayerCollisionTester.overlaps(this);
+        return solidsLayerCollisionTester.overlaps(this, null);
+    }
+
+    void tryCollectCarrot() {
+        carrots.overlaps(this, cell -> {
+            cell.setTile(null);
+            score++;
+        }); // todo inc carrots ctr
     }
 
     //------------------------------------------------------------------------------------------------------------------
