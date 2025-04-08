@@ -29,7 +29,7 @@ public class GameScreen extends ScreenAdapter {
         this.res = res;
         debugOverlay = new DebugOverlay(res, gameViewport, Conf.DEBUG_SHOW_PROCESS_CPU_LOAD);
         TiledMapTileLayer solids = (TiledMapTileLayer) tiledMap.getLayers().get("solids");
-        player = new Player(0, solids.getTileHeight() * (solids.getHeight() - 3));
+        player = new Player(0, solids.getTileHeight() * (solids.getHeight() - 3), res);
 //        player = new Player(220 * 8, 120 * 8);
         player.solidsLayerCollisionTester = new SolidsLayerCollisionTester(solids);
         player.carrots =  new SolidsLayerCollisionTester((TiledMapTileLayer) tiledMap.getLayers().get("carrots"));
@@ -89,11 +89,14 @@ public class GameScreen extends ScreenAdapter {
         mapRenderer.setView(gameCamera);
         mapRenderer.render();
 
-        res.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        player.draw(res.shapeRenderer);
-        res.shapeRenderer.end();
+//        res.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+//        player.draw(res.shapeRenderer);
+//        res.shapeRenderer.end();
 
+        res.spriteBatch.setProjectionMatrix(gameCamera.combined);
         res.spriteBatch.begin();
+        player.draw(res.spriteBatch);
+        res.spriteBatch.setProjectionMatrix(debugOverlay.screenViewport.getCamera().combined);
         res.spriteBatch.setColor(DebugOverlay.Colors.TEXT);
         res.font.draw(res.spriteBatch, "CARROTS: " + player.score + " / " + player.carrotsRemaining, 0, gameViewport.getScreenHeight());
         res.spriteBatch.end();

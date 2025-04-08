@@ -21,7 +21,7 @@ public class DebugOverlay {
     private final Viewport gameViewport;
 
     private final DecimalFormat decimalFormat = new DecimalFormat("0.000");
-    private final Viewport screenViewport = new ScreenViewport();
+    public final Viewport screenViewport = new ScreenViewport();
     private final PerformanceCounter renderPerfCounter = new PerformanceCounter("render");
     private final StringBuilder stringBuilder = new StringBuilder();
 

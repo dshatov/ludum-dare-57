@@ -5,10 +5,15 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.controllers.Controller;
 import com.badlogic.gdx.controllers.Controllers;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Animation;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 
+import java.io.Serializable;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -51,12 +56,14 @@ public class Player extends Actor {
     private final EnumSet<ActionInput> currentInputs = EnumSet.noneOf(ActionInput.class);
     private final EnumSet<ActionInput> previousInput = EnumSet.noneOf(ActionInput.class);
     private final float[] inputChangeTime = new float[ActionInput.INSTANCES.length];
+    private final Map<String, Animation<TextureRegion>> animations;
+
     public SolidsLayerCollisionTester carrots;
 
     private float vx = 0;
     private float vy = 0;
     private float ax = 0;
-    private float ay = 0;
+    private float ay = -FALLING_AY;
 
     private boolean isLeft = false;
 
@@ -65,7 +72,8 @@ public class Player extends Actor {
 
     private State state = State.FALLING;
     private State previousState = State.JUMPING;
-    private float stateChangeTime = 3600;
+    private float stateChangeTime = 0;
+    private Animation<TextureRegion> animation;
 
     public SolidsLayerCollisionTester solidsLayerCollisionTester = null;
     public int score = 0;
@@ -74,16 +82,29 @@ public class Player extends Actor {
     //------------------------------------------------------------------------------------------------------------------
 
     @SuppressWarnings("unused")
-    public Player() {
-        this(0, 0);
+    public Player(MainResources res) {
+        this(0, 0, res);
     }
 
-    public Player(final int x, final int y) {
-        this(x, y, Conf.TILE_SIZE - 2, Conf.TILE_SIZE - 2);
+    public Player(final int x, final int y, MainResources res) {
+        this(x, y, 5, 6, res);
     }
 
-    public Player(final int x, final int y, final int w, final int h) {
+    public Player(final int x, final int y, final int w, final int h, MainResources res) {
         super(x, y, w, h);
+
+        TextureRegion[] frames = TextureRegion.split(res.rabbitSpriteSheetTexture, 12, 12)[0]; // only first row
+
+
+        animations = Map.of(
+            "run", new Animation<>(0.05f, Array.with(Arrays.copyOfRange(frames, 0, 4)), Animation.PlayMode.LOOP),
+            "land", new Animation<>(0.10f, Array.with(Arrays.copyOfRange(frames, 4, 7)), Animation.PlayMode.NORMAL),
+            "sit", new Animation<>(0.5f, Array.with(Arrays.copyOfRange(frames, 5, 9)), Animation.PlayMode.LOOP),
+            "slide", new Animation<>(0.05f, Array.with(Arrays.copyOfRange(frames, 9, 11)), Animation.PlayMode.LOOP),
+            "jump", new Animation<>(0.10f, Array.with(Arrays.copyOfRange(frames, 11, 13)), Animation.PlayMode.NORMAL),
+            "fall", new Animation<>(0.25f, Array.with(Arrays.copyOfRange(frames, 13, 15)), Animation.PlayMode.NORMAL)
+        );
+        animation = animations.get("sit");
     }
 
     @Override
@@ -95,6 +116,15 @@ public class Player extends Actor {
             sr.rect(x, y + h - 1, 1, 1);
         } else {
             sr.rect(x + w - 1, y + h - 1, 1, 1);
+        }
+    }
+
+    public void draw(final SpriteBatch batch) {
+        batch.setColor(Color.WHITE);
+        if (isLeft) {
+            batch.draw(animation.getKeyFrame(stateChangeTime), x + 12 - 3, y - 3, -12, 12);
+        } else {
+            batch.draw(animation.getKeyFrame(stateChangeTime), x - 4, y - 3);
         }
     }
 
@@ -374,7 +404,7 @@ public class Player extends Actor {
                 if (input == ActionInput.JUMP && input.isPressed() && input.hasTinyTimeSinceUpdate(player)) {
                     player.vy = JUMPING_INSTANT_VY;
                     player.ay = -FALLING_WHEN_JUMPING_AY;
-                    player.state = JUMPING;
+                    player.setState(JUMPING);
                 }
             }
 
@@ -391,7 +421,7 @@ public class Player extends Actor {
 
             @Override
             public void enterState(Player player) {
-
+                player.animation = player.animations.get("sit");
             }
         }
 
@@ -438,6 +468,7 @@ public class Player extends Actor {
 
             @Override
             public void enterState(Player player) {
+                player.animation = player.animations.get("jump");
             }
         }
 
@@ -469,6 +500,7 @@ public class Player extends Actor {
             @Override
             public void enterState(Player player) {
 
+                player.animation = player.animations.get("jump");
             }
         }
 
@@ -498,6 +530,7 @@ public class Player extends Actor {
                 int dy = player.applyVelocityY(dt);
                 if (0 <= dy && player.vy == 0) {
                     player.setState(STANDING);
+                    player.animation = player.animations.get("land");
                 } else if (player.touchLeftWall || player.touchRightWall) {
                     player.ay = -WALL_SLIDING_AY;
                     player.setState(WALL_SLIDING);
@@ -507,6 +540,7 @@ public class Player extends Actor {
 
             @Override
             public void enterState(Player player) {
+                player.animation = player.animations.get("fall");
                 player.vy = 0;
                 player.ay = -FALLING_AY;
             }
@@ -527,12 +561,14 @@ public class Player extends Actor {
                         player.ay = -FALLING_WHEN_JUMPING_AY;
                         player.vx = JUMPING_INSTANT_VY / 1.5f;
                         player.setState(WALL_JUMPING);
+                        player.isLeft = false;
                     }
                     if (!player.touchLeftWall && player.touchRightWall) {
                         player.vy = JUMPING_INSTANT_VY / 1.5f;
                         player.ay = -FALLING_WHEN_JUMPING_AY;
                         player.vx = -JUMPING_INSTANT_VY / 1.5f;
                         player.setState(WALL_JUMPING);
+                        player.isLeft = true;
                     }
                 }
             }
@@ -546,11 +582,14 @@ public class Player extends Actor {
                 } else if (!player.touchRightWall && !player.touchLeftWall) {
                     player.setState(FALLING);
                 }
+                player.isLeft = player.touchLeftWall;
                 player.applyVelocityX(dt);
             }
 
             @Override
             public void enterState(Player player) {
+                player.isLeft = player.touchLeftWall;
+                player.animation = player.animations.get("slide");
 
             }
         }
@@ -586,6 +625,7 @@ public class Player extends Actor {
 
             @Override
             public void enterState(Player player) {
+                player.animation = player.animations.get("run");
 
             }
         }
